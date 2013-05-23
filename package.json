@@ -1,5 +1,5 @@
 {
-    "name": "Nateon Friends",
+    "name": "nateon",
     "description": "Nateon Friends",
     "version": "0.1.0",
     "main": "server/app.js",
