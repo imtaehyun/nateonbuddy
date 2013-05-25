@@ -1,0 +1,42 @@
+<html>
+<head>
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+    <script type="text/javascript">
+        var requestUrl = window.document.URL.toString();
+        
+        if (requestUrl.indexOf('#') > 0) {
+            var arrParams = requestUrl.split('#');
+            var arrURLParams = arrParams[1].split('&');
+            
+            var arrParamNames = new Array(arrURLParams.length);
+            var arrParamValues = new Array(arrURLParams.length);
+            
+            for (var i=0; i<arrURLParams.length; i++) {
+                var sParam = arrURLParams[i].split('=');
+                arrParamNames[i] = sParam[0];
+                arrParamValues[i] = sParam[1];
+                console.log(arrParamNames[i] + ': ' + arrParamValues[i]);
+            }
+            $.ajax({
+                url: '/auth',
+                type: 'POST',
+                async: false,
+                data: {
+                    access_token: arrParamValues[0],
+                    token_type: arrParamValues[1],
+                    expires_in: arrParamValues[2]
+                }
+            }).success(function() {
+                window.location.replace('/send');
+            }).error(function() {
+                alert('error');
+            });
+        }
+        
+        
+    </script>
+</head>
+<body>
+    
+</body>
+</html>

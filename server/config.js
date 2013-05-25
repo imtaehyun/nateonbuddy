@@ -1,13 +1,10 @@
 // 1. URL 및 Consumer 정보 설정
 var config = {
-    requestTokenUrl: "https://oauth.nate.com/OAuth/GetRequestToken/V1a",
-	authorizeUrl: "https://oauth.nate.com/OAuth/Authorize/V1a",
-	accessTokenUrl: "https://oauth.nate.com/OAuth/GetAccessToken/V1a",
-	consumerKey: "0725cfa2a9c5e7aa48c5766691930e6d050400b5b",
-	consumerSecret: "5c6b3ac5109589436808543c3377ef08",
-	callbackUrl: "oob",
-	apiUrl: "https://oauth.nate.com",
-    resourceUrl: "https://openapi.nate.com/OApi/RestApiSSL/ON/250060/nateon_SendNote/v1"
+	appKey: "fcb1a133-a4c7-3262-bf10-4e17a2789584",
+    clientId: "0923817c-8d1d-394a-ab98-827d7376d636",
+	clientSecret: "fdcbc733-2e96-3923-957b-0f481ce70cd8",
+	redirectUri: "http://nateon.nezz.c9.io/auth",
+    scope: "nateon/note"
 }
 
 // 외부 모듈에서 사용할 수 있도록 export

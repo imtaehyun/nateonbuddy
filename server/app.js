@@ -1,83 +1,87 @@
 var express = require('express')
   , http = require('http')
+  , https = require('https')
   , path = require('path')
   , fs = require('fs')
   , config = require('./config').config
-  , OAuth = require('oauth').OAuth
-  , read = require('read')
-  , XmlDocument = require('xmldoc').XmlDocument;
+  , querystring = require('querystring');
   
 // ========================
 // Nateon OAuth Setting
 // ========================
 
-var _requestToken = "",
-    _requestTokenSecret = "",
-    _accessToken = "",
-    _accessTokenSecret = "",
-    isAuth = false;
-    
-// Service Provider와 통신할 인터페이스를 갖고 있는 객체 생성.
-var oauth = new OAuth(config.requestTokenUrl, config.accessTokenUrl,
-    config.consumerKey, config.consumerSecret,
-	"1.0", config.callbackUrl, "HMAC-SHA1");
+var isAuth = false;
 
-// 2. Request Token 요청
-// oauth.getOAuthRequestToken(function(err, requestToken, requestTokenSecret, results) {
-//     if (err) {
-//         console.error(err);
-// 	} else {
-//         // 3. 사용자 인증(Authentication) 및 권한 위임(Authorization)
-// 		console.log(config.authorizeUrl + "?oauth_token=" + requestToken);
-// 		console.log("웹브라우저에서 위 URL로 가서 인증코드를 얻고 입력하세요.");
-        
-//         // 4. verifier 입력 받기
-//     	read({prompt: "verifier: "}, function(err, verifier) {
-// 			if(err) {
-// 				console.error(err);
-// 			} else {
+function postJSON(options, data, onResult)
+{
+    console.log("rest::postJSON");
 
-// 				// 5. Request Token을 AccessToken 으로 교환
-				// oauth.getOAuthAccessToken(requestToken, requestTokenSecret, verifier, function(err, accessToken, accessTokenSecret, result) {
-				// 	if (err) {
-				// 		console.error(err);
-				// 	} else {
-				// 		console.log("Access Token = " + accessToken);
-				// 		console.log("Access Token Secret = " + accessTokenSecret);
-    //                     _accessToken = accessToken;
-    //                     _accessTokenSecret = accessTokenSecret;
-				// 	}
-				// });
-// 			}
-// 		});
-// 	}
-// });
- 
-var sendNote = function(ref, body, callback) {
-    console.log("accessToken: " + _accessToken);
-    console.log("accessTokenSecret: " + _accessTokenSecret);
+    var prot = options.port == 443 ? https : http;
+    var req = prot.request(options, function(res)
+    {
+        var output = '';
+        console.log(options.host + ':' + res.statusCode);
+        res.setEncoding('utf8');
+
+        res.on('data', function (chunk) {
+            output += chunk;
+        });
+
+        res.on('end', function() {
+            console.log('end: ' + output);
+            var obj = eval("(" + output + ")");
+            onResult(res.statusCode, obj);
+        });
+    });
+
+    req.on('error', function(err) {
+        console.log('error: ' + err.message);
+    });
+
+    req.write(querystring.stringify(data));
+    req.end();
+};
+
+
+//https://apis.skplanetx.com/nateon/notes?version={version}
+var headers = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'appkey': config.appKey
+};
+var options = {
+    host : 'apis.skplanetx.com',
+    port : 443,
+    path : '/nateon/notes?version=1', // the rest of the url with parameters if needed
+    method : 'POST', // do GET
+    headers: headers
+};
+
+var sendNote = function(receivers, message, confirm, callback) {
+    // console.log("accessToken: " + _accessToken);
+    // console.log("accessTokenSecret: " + _accessTokenSecret);
     // 6. 보호된 자원에 접근
 	var body = {
-        "body": body,
-        "ref": ref
+        "receivers": receivers,
+        "message": message,
+        "confirm": confirm
     };
-	oauth.post(config.resourceUrl, _accessToken, _accessTokenSecret, body, null, function(err, data, res) {
-		if(err) {
-			console.error(err);
-		} else {
-            // console.log(data);
-            var results = new XmlDocument(data);
-            console.log(results);
-            
-            var header = results.childNamed('header');
-            var rcode = header.childNamed('rcode');
-            // var rmsg = results.childNamed('rmsg');
-            console.log(rcode.val);
-            console.log(results.childNamed('header').childNamed('rcode').val);
-            // console.log(rmsg.val);
-            callback(results.childNamed('header').childNamed('rcode').val);
-		}
-	});
+	// options.body = body;
+    console.log(body);
+    console.log('headers' + JSON.stringify(options.headers));
+    postJSON(options, body, function(statusCode, result)
+    {
+        console.log('statusCode:' + statusCode);
+        console.log('result:' + result);
+        // The service will need the full objects for processing in the service
+        // for (index in result.results)
+        // {
+        //     var student = result.results[index];
+        //     console.log('student: ' + student.name);
+        // }
+
+        // res.statusCode = statusCode;
+        // res.send(result);
+    });
 };
 
 // ========================
@@ -110,41 +114,29 @@ var app =
 
 app
     .get('/admin', function (req, res, next) {
-        console.log(isAuth);
-        if (isAuth === true) {
-            res.redirect('/send');
-        }
-        oauth.getOAuthRequestToken(function(err, requestToken, requestTokenSecret, results) {
-            if (err) {
-                res.send(err);
-                console.error(err);
-            } else {
-                _requestToken = requestToken;
-                _requestTokenSecret = requestTokenSecret;
-                var innerHTML = '<p><a href="' + config.authorizeUrl + "?oauth_token=" + requestToken + '" target="_blank">' + config.authorizeUrl + "?oauth_token=" + requestToken + '</a></p>'
-                                + '<form method="post" action="/admin">'
-                                + '<input type="text" name="token"/>'
-                                + '<input type="submit" value="Submit"/>'
-                                + '</form>';
-                res.send(innerHTML);
-            }
-        });
+        var authUrl = 'https://oneid.skplanetx.com/oauth/authorize?client_id=' + config.clientId 
+                    + '&response_type=token'
+                    + '&scope=' + config.scope
+                    + '&redirect_uri=' + config.redirectUri;
+        res.redirect(authUrl);
     })
-    .post('/admin', function (req, res, next) {
-        console.log(req.body.token);
-        oauth.getOAuthAccessToken(_requestToken, _requestTokenSecret, req.body.token, function(err, accessToken, accessTokenSecret, result) {
-			if (err) {
-                res.send(err);
-				console.error(err);
-			} else {
-				console.log("Access Token = " + accessToken);
-				console.log("Access Token Secret = " + accessTokenSecret);
-                _accessToken = accessToken;
-                _accessTokenSecret = accessTokenSecret;
-                isAuth = true;
-                res.redirect('/send');
-			}
-		});
+    .get('/auth', function (req, res, next) {
+        //https://[redirect_uri]#access_token=74cfa5c6-be9e-42c9-b79a-9e4a6ea8a12c &expires_in=43199
+        //https://[redirect_uri]?error=access_denied&error_description=User denied authorization of the authorization code
+        var error = req.query['error'];
+        console.log(error);
+        if (error !== undefined) {
+            // authorize error
+            return console.error(error + ': ' + req.query['error_description']);
+        } else {
+            // authorize success
+            res.render('auth.html');
+        }
+    })
+    .post('/auth', function (req, res, next) {
+        console.log(req.body.access_token);
+        headers.access_token = req.body.access_token;
+        res.send('success');
     })
     .get('/send', function (req, res, next) {
         var innerHTML = 'You can send note now!!'
@@ -159,7 +151,7 @@ app
     .post('/api/send', function (req, res, next) {
         console.log(req.body.ref);
         console.log(req.body.body)
-        sendNote(req.body.ref, req.body.body, function(result) {
+        sendNote(req.body.ref, req.body.body, 'Y', function(result) {
             console.log(result);
             var innerHTML = '<script type="text/javascript">'
                             + 'alert("' + result + '");'
