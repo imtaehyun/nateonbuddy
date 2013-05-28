@@ -27,7 +27,9 @@
                     expires_in: arrParamValues[2]
                 }
             }).success(function() {
-                window.location.replace('/send');
+                // window.location.replace('/send');
+                alert('success');
+                window.location.replace('/sendNote');
             }).error(function() {
                 alert('error');
             });

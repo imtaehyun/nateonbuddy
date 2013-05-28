@@ -3,87 +3,11 @@ var express = require('express')
   , https = require('https')
   , path = require('path')
   , fs = require('fs')
-  , config = require('./config').config
+  // , config = require('./config').config
+  , nateon = require('./nateon').nateon
+  , weather = require('./weather')
   , querystring = require('querystring');
-  
-// ========================
-// Nateon OAuth Setting
-// ========================
-
-var isAuth = false;
-
-function postJSON(options, data, onResult)
-{
-    console.log("rest::postJSON");
-
-    var prot = options.port == 443 ? https : http;
-    var req = prot.request(options, function(res)
-    {
-        var output = '';
-        console.log(options.host + ':' + res.statusCode);
-        res.setEncoding('utf8');
-
-        res.on('data', function (chunk) {
-            output += chunk;
-        });
-
-        res.on('end', function() {
-            console.log('end: ' + output);
-            var obj = eval("(" + output + ")");
-            onResult(res.statusCode, obj);
-        });
-    });
-
-    req.on('error', function(err) {
-        console.log('error: ' + err.message);
-    });
-
-    req.write(querystring.stringify(data));
-    req.end();
-};
-
-
-//https://apis.skplanetx.com/nateon/notes?version={version}
-var headers = {
-    'Content-Type': 'application/x-www-form-urlencoded',
-    'appkey': config.appKey
-};
-var options = {
-    host : 'apis.skplanetx.com',
-    port : 443,
-    path : '/nateon/notes?version=1', // the rest of the url with parameters if needed
-    method : 'POST', // do GET
-    headers: headers
-};
-
-var sendNote = function(receivers, message, confirm, callback) {
-    // console.log("accessToken: " + _accessToken);
-    // console.log("accessTokenSecret: " + _accessTokenSecret);
-    // 6. 보호된 자원에 접근
-	var body = {
-        "receivers": receivers,
-        "message": message,
-        "confirm": confirm
-    };
-	// options.body = body;
-    console.log(body);
-    console.log('headers' + JSON.stringify(options.headers));
-    postJSON(options, body, function(statusCode, result)
-    {
-        console.log('statusCode:' + statusCode);
-        console.log('result:' + result);
-        // The service will need the full objects for processing in the service
-        // for (index in result.results)
-        // {
-        //     var student = result.results[index];
-        //     console.log('student: ' + student.name);
-        // }
-
-        // res.statusCode = statusCode;
-        // res.send(result);
-    });
-};
-
+ 
 // ========================
 // Server
 // ========================
@@ -114,17 +38,13 @@ var app =
 
 app
     .get('/admin', function (req, res, next) {
-        var authUrl = 'https://oneid.skplanetx.com/oauth/authorize?client_id=' + config.clientId 
-                    + '&response_type=token'
-                    + '&scope=' + config.scope
-                    + '&redirect_uri=' + config.redirectUri;
-        res.redirect(authUrl);
+        res.redirect(nateon.auth_url);
     })
     .get('/auth', function (req, res, next) {
         //https://[redirect_uri]#access_token=74cfa5c6-be9e-42c9-b79a-9e4a6ea8a12c &expires_in=43199
         //https://[redirect_uri]?error=access_denied&error_description=User denied authorization of the authorization code
         var error = req.query['error'];
-        console.log(error);
+        
         if (error !== undefined) {
             // authorize error
             return console.error(error + ': ' + req.query['error_description']);
@@ -135,29 +55,31 @@ app
     })
     .post('/auth', function (req, res, next) {
         console.log(req.body.access_token);
-        headers.access_token = req.body.access_token;
+        nateon.authorize(req.body.access_token);
         res.send('success');
     })
-    .get('/send', function (req, res, next) {
-        var innerHTML = 'You can send note now!!'
-                        +'<form method="post" action="/api/send">'
-                        + '<input type="text" name="ref"/>'
-                        + '<input type="text" name="body"/>'
-                        + '<input type="submit" value="submit"/>'
-                        + '</form>';
-        res.send(innerHTML);
+    .get('/sendNote', function (req, res, next) {
+        res.render('sendNote.html');
     })
-    // Get all programs
+    .get('/add', function (req, res, next) {
+        res.render('addBuddy.html');
+    })
     .post('/api/send', function (req, res, next) {
         console.log(req.body.ref);
         console.log(req.body.body)
-        sendNote(req.body.ref, req.body.body, 'Y', function(result) {
+        nateon.sendNote(req.body.ref, req.body.body, 'Y', function(result) {
             console.log(result);
             var innerHTML = '<script type="text/javascript">'
                             + 'alert("' + result + '");'
-                            + 'location.href = "/send";'
+                            + 'location.href = "/sendNote";'
                             + '</script>';
             res.send(innerHTML);
+        });
+    })
+    .post('/api/add', function (req, res, next) {
+        nateon.addBuddy(req.body.nateId, function(result) {
+            if (result) res.send('친구 추가 완료');
+            else res.send('친구 추가 실패');
         });
     });
     
@@ -181,3 +103,11 @@ app
 http.createServer(app).listen(app.get('port'), function () {
     console.log('Server listening on port ' + app.get('port'));
 });
+// var sendWeather = function () {
+//     weather.getWeatherData('1120069000', function(data) {
+//         sendNote('shocklance@nate.com', data, 'Y', function(result) {
+//             console.log('result');
+//         })
+//     });
+// };
+// setInterval(function() { sendWeather(); }, 10000);
